@@ -12,6 +12,22 @@
 <link rel="apple-touch-icon" href="icons/icon-parent-180.png">
 <link rel="icon" href="icons/icon-parent-180.png">
 <script src="config.js"></script>
+<script>
+// LINE / FB / IG 等 App 內建瀏覽器不允許 Google 登入（Google 政策封鎖 webview）。
+// LINE：網址加 openExternalBrowser=1 會自動改用 Safari / Chrome 開啟。
+(function () {
+  var ua = navigator.userAgent || '';
+  var isLine = / Line\//i.test(ua);
+  var inApp = isLine || /FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|Threads|; wv\)/i.test(ua);
+  if (!inApp) return;
+  var u = new URL(location.href);
+  if (isLine && u.searchParams.get('openExternalBrowser') !== '1') {
+    u.searchParams.set('openExternalBrowser', '1');
+    location.replace(u.toString());
+  }
+  window.__IN_APP__ = true;
+})();
+</script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js" defer></script>
 <style>
@@ -554,7 +570,17 @@ $('#resetKid').onclick = async () => {
 document.addEventListener('visibilitychange', () => { if (!document.hidden && S && getToken()) api('state').catch(() => {}); });
 
 // ---------- 啟動 ----------
-if (!CFG.API_URL || CFG.API_URL.includes('PASTE_')) {
+if (window.__IN_APP__) {
+  const link = location.origin + location.pathname;
+  document.body.innerHTML = `<div id="login"><div class="logo">🧭</div><h1>請改用 Safari 或 Chrome 開啟</h1>
+    <p class="sub">LINE、Facebook 等 App 內建的瀏覽器無法使用 Google 登入。<br>
+    請點右上角「⋯」或分享按鈕 →「用 Safari / 預設瀏覽器開啟」，或複製下方網址貼到 Safari。</p>
+    <div class="linkbox" style="text-align:left">${link}</div>
+    <button class="primary" id="copyLink" style="width:100%">複製網址</button></div><div class="toast" id="toast"></div>`;
+  document.getElementById('copyLink').onclick = async () => {
+    try { await navigator.clipboard.writeText(link); toast('已複製，請貼到 Safari'); } catch { toast('請長按網址手動複製', true); }
+  };
+} else if (!CFG.API_URL || CFG.API_URL.includes('PASTE_')) {
   document.body.innerHTML = '<div id="login"><div class="logo">⚙️</div><h1>尚未設定</h1><p class="sub">請先編輯 config.js 填入 API_URL 與 CLIENT_ID</p></div>';
 } else {
   start();
