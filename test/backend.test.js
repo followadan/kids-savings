@@ -42,7 +42,7 @@ const ctx = {
     computeDigest: (a, s) => Array.from(Buffer.from(require('crypto').createHash('sha256').update(s).digest())),
     DigestAlgorithm: { SHA_256: 'sha256' },
     base64EncodeWebSafe: b => Buffer.from(b).toString('base64url'),
-    formatDate: (d, tz, f) => f === 'yyyy-MM' ? `2026-${String(d.getMonth() + 1).padStart(2, '0')}` : 'x' + (++uid),
+    formatDate: (d, tz, f) => f === 'yyyy-MM' ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` : 'x' + (++uid),
     getUuid: () => require('crypto').randomUUID(),
   },
   UrlFetchApp: { fetch: url => { const t = decodeURIComponent(url.split('id_token=')[1]); const info = tokenInfo[t];
@@ -142,3 +142,23 @@ r = call({ action: 'resetKidToken', idToken: dad }); assert(r.ok); assert.notEqu
 
 console.log('ALL BACKEND TESTS PASSED');
 console.log(JSON.stringify(sheets.Ledger.rows.slice(0, 3)));
+
+// ---- monthly history ----
+{
+  const L = sheets.Ledger.rows;
+  // backdate: add entries in Aug and Oct of this year
+  const y = new Date().getFullYear();
+  L.splice(1, 0,
+    ['H1', new Date(y, 7, 10), 'deposit', 500, '爺爺', 'grandpa@gmail.com', '爺爺', '', '', ''],
+    ['H2', new Date(y, 9, 5), 'deposit', 300, '爺爺', 'grandpa@gmail.com', '爺爺', '', '', '']);
+  const st = call({ action: 'state', idToken: dad }).data;
+  const h = st.history;
+  assert.equal(h[0].month, `${y}-08`);
+  assert.equal(h[0].balance, 500);
+  assert.equal(h[1].month, `${y}-09`); assert.equal(h[1].balance, 500); assert.equal(h[1].change, 0);
+  assert.equal(h[2].balance, 800);
+  assert.equal(h[h.length - 1].balance, st.balance);
+  const kid = call({ action: 'kid', token: props.KID_TOKEN }).data;
+  assert.deepEqual(kid.history, h);
+  console.log('HISTORY OK', JSON.stringify(h));
+}

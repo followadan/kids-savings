@@ -12,6 +12,7 @@
 <link rel="apple-touch-icon" href="icons/icon-parent-180.png?v=2">
 <link rel="icon" href="icons/icon-parent-180.png?v=2">
 <script src="config.js"></script>
+<script src="chart.js?v=1"></script>
 <script>
 // LINE / FB / IG 等 App 內建瀏覽器不允許 Google 登入（Google 政策封鎖 webview）。
 // LINE：網址加 openExternalBrowser=1 會自動改用 Safari / Chrome 開啟。
@@ -139,6 +140,10 @@ nav button.on{color:var(--ink);font-weight:700;background:#f1ece3}
         <h2 id="kidLabel">目前存款</h2>
         <div class="balance"><span id="bal">0</span><small>元</small></div>
         <div class="sub" id="interestHint"></div>
+      </div>
+      <div class="card" id="historyCard">
+        <h2>儲蓄累積曲線（每月月底）</h2>
+        <div id="historyChart"></div>
       </div>
       <div class="card">
         <h2>存款來源</h2>
@@ -343,6 +348,10 @@ function render() {
   $('#bal').textContent = fmt(S.balance);
   $('#interestHint').textContent = S.nextInterest > 0 ? `下個月 1 日預計利息 +${fmt(S.nextInterest)} 元` : '存滿門檻就會開始有利息';
   $('#navAdmin').classList.toggle('hidden', S.me.role !== 'admin');
+
+  // 累積曲線（舊版後端沒有 history 欄位時隱藏）
+  $('#historyCard').classList.toggle('hidden', !S.history);
+  if (S.history && window.renderSavingsChart) renderSavingsChart($('#historyChart'), S.history, { color: '#1f8a5b' });
 
   // 來源
   const inc = S.bySource.income, max = Math.max(1, ...inc.map(x => x.amount));

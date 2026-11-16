@@ -418,6 +418,7 @@ function fullState_(user) {
     rewards: readRows_(SHEETS.REWARDS).filter(r => isTrue_(r.active)).map(r => ({ id: r.id, name: r.name, price: Number(r.price) })),
     goals: goals_(ledger),
     nextInterest: calcInterest_(balanceOf_(ledger), settings),
+    history: monthlyHistory_(ledger),
     ledger: recent,
     perms: Object.keys(PERMS).filter(p => PERMS[p].indexOf(user.role) >= 0),
   };
@@ -443,6 +444,7 @@ function kidView_() {
     balance: balanceOf_(ledger),
     goals: goals_(ledger).filter(g => g.status === 'active').map(g => ({ name: g.name, target: g.target, progress: g.progress })),
     doneGoals: goals_(ledger).filter(g => g.status === 'done').length,
+    history: monthlyHistory_(ledger),
     stamps: stamps_(eff, readRows_(SHEETS.TASKS)).map(s => ({
       name: s.name, inCard: s.inCard, target: s.target, cards: s.cards, total: s.total,
     })),
@@ -455,6 +457,34 @@ function effectiveLedger_(ledger) {
   const reversed = {};
   ledger.forEach(r => { if (r.type === 'reversal') reversed[r.link_id] = true; });
   return ledger.filter(r => r.type !== 'reversal' && !reversed[r.id]);
+}
+
+/** 每月月底累積存款（含撤銷，與總存款一致）：從第一筆紀錄的月份到本月 */
+function monthlyHistory_(ledger) {
+  const tz = 'Asia/Taipei';
+  const byMonth = {};
+  ledger.forEach(r => {
+    const d = r.time instanceof Date ? r.time : new Date(r.time);
+    if (isNaN(d)) return;
+    const m = Utilities.formatDate(d, tz, 'yyyy-MM');
+    byMonth[m] = round_((byMonth[m] || 0) + (Number(r.amount) || 0));
+  });
+  const months = Object.keys(byMonth).sort();
+  if (!months.length) return [];
+  const now = Utilities.formatDate(new Date(), tz, 'yyyy-MM');
+  const last = months[months.length - 1] > now ? months[months.length - 1] : now;
+  let y = Number(months[0].slice(0, 4)), mo = Number(months[0].slice(5, 7));
+  const out = [];
+  let cum = 0;
+  while (out.length < 600) {
+    const key = y + '-' + (mo < 10 ? '0' : '') + mo;
+    const change = byMonth[key] || 0;
+    cum = round_(cum + change);
+    out.push({ month: key, balance: cum, change: change });
+    if (key >= last) break;
+    mo++; if (mo > 12) { mo = 1; y++; }
+  }
+  return out;
 }
 
 function balanceOf_(ledger) {
