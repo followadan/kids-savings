@@ -22,7 +22,7 @@
   <circle cx="256" cy="392" r="88" fill="#e9a91c"/>
   <circle cx="256" cy="392" r="70" fill="#f8c94a"/>
   <circle cx="256" cy="392" r="70" fill="none" stroke="#e9a91c" stroke-width="6" stroke-dasharray="4 10"/>
-  <text x="256" y="420" text-anchor="middle" font-family="Noto Sans CJK TC" font-weight="900" font-size="80" fill="#b5760a">元</text>
+  <text x="256" y="420" text-anchor="middle" font-family="PingFang TC, Heiti TC, Noto Sans CJK TC, sans-serif" font-weight="900" font-size="80" fill="#b5760a">元</text>
   <!-- paws -->
   <ellipse cx="170" cy="376" rx="40" ry="32" fill="#ffffff" stroke="#efe3d3" stroke-width="4"/>
   <ellipse cx="342" cy="376" rx="40" ry="32" fill="#ffffff" stroke="#efe3d3" stroke-width="4"/>

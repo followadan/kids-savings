@@ -22,7 +22,8 @@ html,body{margin:0;background:var(--bg);color:var(--ink);
 body{padding:calc(16px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom))}
 .wrap{max-width:860px;margin:0 auto}
 .hero{text-align:center;padding:20px 10px 10px}
-.pig{font-size:84px;line-height:1;display:inline-block;animation:bob 2.6s ease-in-out infinite}
+.pig{width:120px;height:120px;border-radius:28px;display:inline-block;animation:bob 2.6s ease-in-out infinite}
+.err img{width:84px;height:84px;border-radius:20px}
 @keyframes bob{50%{transform:translateY(-8px)}}
 .hello{font-size:22px;margin:10px 0 2px;font-weight:700}
 .money{font-size:clamp(56px,14vw,96px);font-weight:900;color:var(--orange);letter-spacing:-2px;font-variant-numeric:tabular-nums}
@@ -49,7 +50,7 @@ body{padding:calc(16px + env(safe-area-inset-top)) 16px calc(24px + env(safe-are
 </style>
 </head>
 <body>
-<div class="wrap" id="root"><div class="err">🐷 載入中…</div></div>
+<div class="wrap" id="root"><div class="err"><img src="icons/icon-cat.svg" alt=""><br>載入中…</div></div>
 <script>
 'use strict';
 const CFG = window.APP_CONFIG || {};
@@ -70,7 +71,7 @@ async function load() {
     render(j.data);
   } catch (e) { fail('網路好像斷了，等一下再試試看'); }
 }
-function fail(msg) { document.getElementById('root').innerHTML = `<div class="err">🐷<br>${esc(msg)}</div>`; }
+function fail(msg) { document.getElementById('root').innerHTML = `<div class="err"><img src="icons/icon-cat.svg" alt=""><br>${esc(msg)}</div>`; }
 
 function render(d) {
   const goals = d.goals.map(g => `
@@ -87,7 +88,7 @@ function render(d) {
     </div>`).join('');
   document.getElementById('root').innerHTML = `
     <div class="hero">
-      <div class="pig">🐷</div>
+      <img class="pig" src="icons/icon-cat.svg" alt="">
       <div class="hello">${esc(d.kidName)}的存錢筒</div>
       <div class="money">${fmt(d.balance)}<small>元</small></div>
     </div>
