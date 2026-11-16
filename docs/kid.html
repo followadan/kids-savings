@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>我的存錢筒</title>
+<!-- 刻意不放 manifest：iOS「加入主畫面」會記住目前網址（含 ?k= 專屬碼） -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="我的存錢筒">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#fff4dc">
+<meta name="robots" content="noindex">
+<link rel="apple-touch-icon" href="icons/icon-kid-180.png">
+<link rel="icon" href="icons/icon-kid-180.png">
+<script src="config.js"></script>
+<style>
+:root{--bg:#fff4dc;--card:#fff;--ink:#3b2f20;--muted:#8a7a63;--orange:#f08a24;--green:#2fa36b;--gold:#e6a700;}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC",sans-serif;-webkit-user-select:none;user-select:none}
+body{padding:calc(16px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom))}
+.wrap{max-width:860px;margin:0 auto}
+.hero{text-align:center;padding:20px 10px 10px}
+.pig{font-size:84px;line-height:1;display:inline-block;animation:bob 2.6s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-8px)}}
+.hello{font-size:22px;margin:10px 0 2px;font-weight:700}
+.money{font-size:clamp(56px,14vw,96px);font-weight:900;color:var(--orange);letter-spacing:-2px;font-variant-numeric:tabular-nums}
+.money small{font-size:.35em;margin-left:6px;color:var(--ink)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-top:16px}
+.card{background:var(--card);border-radius:24px;padding:20px;box-shadow:0 4px 0 #f0dfbd}
+.card h2{margin:0 0 12px;font-size:20px}
+.goal{margin:14px 0}
+.goal .t{display:flex;justify-content:space-between;font-size:18px;font-weight:700}
+.goal .t span{color:var(--muted);font-weight:600;font-size:15px}
+.track{height:22px;background:#f6ead2;border-radius:12px;margin-top:8px;overflow:hidden;position:relative}
+.track i{display:block;height:100%;background:linear-gradient(90deg,#ffc24d,var(--orange));border-radius:12px;transition:width .8s}
+.track b{position:absolute;right:10px;top:0;line-height:22px;font-size:13px}
+.ok{color:var(--green);font-weight:800;margin-top:6px}
+.stampcard{margin:14px 0 18px}
+.stampcard .t{display:flex;justify-content:space-between;align-items:center;font-size:18px;font-weight:700}
+.badge{background:#fff1c2;color:#9a6b00;border-radius:99px;padding:4px 10px;font-size:14px}
+.dots{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.dot{width:38px;height:38px;border-radius:50%;border:3px dashed #e8d6b0;display:grid;place-items:center;font-size:20px}
+.dot.on{border:3px solid var(--gold);background:#fff6d6}
+.empty{color:var(--muted);font-size:16px}
+.foot{text-align:center;color:var(--muted);font-size:13px;margin-top:18px}
+.err{text-align:center;margin-top:20vh;font-size:20px}
+</style>
+</head>
+<body>
+<div class="wrap" id="root"><div class="err">🐷 載入中…</div></div>
+<script>
+'use strict';
+const CFG = window.APP_CONFIG || {};
+const KEY = 'ks_kid_token';
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => Number(n || 0).toLocaleString('zh-TW', { maximumFractionDigits: 0 });
+
+// 專屬碼：優先用網址的 ?k=，並存起來當備份
+let token = new URLSearchParams(location.search).get('k');
+try { if (token) localStorage.setItem(KEY, token); else token = localStorage.getItem(KEY); } catch {}
+
+async function load() {
+  if (!token) return fail('這個連結少了專屬碼，請跟爸媽要正確的連結');
+  try {
+    const r = await fetch(CFG.API_URL, { method: 'POST', body: JSON.stringify({ action: 'kid', token }) });
+    const j = await r.json();
+    if (!j.ok) return fail(j.error || '讀取失敗');
+    render(j.data);
+  } catch (e) { fail('網路好像斷了，等一下再試試看'); }
+}
+function fail(msg) { document.getElementById('root').innerHTML = `<div class="err">🐷<br>${esc(msg)}</div>`; }
+
+function render(d) {
+  const goals = d.goals.map(g => `
+    <div class="goal">
+      <div class="t">${esc(g.name)}<span>${fmt(g.target)} 元</span></div>
+      <div class="track"><i style="width:${Math.round(g.progress * 100)}%"></i><b>${Math.round(g.progress * 100)}%</b></div>
+      ${g.progress >= 1 ? '<div class="ok">🎉 存夠了！快去跟爸媽說</div>'
+        : `<div class="empty" style="font-size:14px;margin-top:4px">還差 ${fmt(Math.max(0, g.target - d.balance))} 元</div>`}
+    </div>`).join('');
+  const stamps = d.stamps.map(s => `
+    <div class="stampcard">
+      <div class="t">${esc(s.name)}<span class="badge">🏆 集滿 ${s.cards} 張</span></div>
+      <div class="dots">${Array.from({ length: s.target }, (_, i) => `<div class="dot ${i < s.inCard ? 'on' : ''}">${i < s.inCard ? '⭐' : ''}</div>`).join('')}</div>
+    </div>`).join('');
+  document.getElementById('root').innerHTML = `
+    <div class="hero">
+      <div class="pig">🐷</div>
+      <div class="hello">${esc(d.kidName)}的存錢筒</div>
+      <div class="money">${fmt(d.balance)}<small>元</small></div>
+    </div>
+    <div class="grid">
+      <div class="card"><h2>🎯 我的目標</h2>${goals || '<div class="empty">還沒有目標，跟爸媽一起訂一個吧！</div>'}
+        ${d.doneGoals ? `<div class="empty" style="margin-top:8px">已經完成 ${d.doneGoals} 個目標 👏</div>` : ''}</div>
+      <div class="card"><h2>⭐ 集章卡</h2>${stamps || '<div class="empty">還沒有集章任務</div>'}</div>
+    </div>
+    <div class="foot">更新時間 ${new Date(d.updated).toLocaleString('zh-TW', { hour12: false })}</div>`;
+}
+
+load();
+document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+setInterval(load, 5 * 60 * 1000);
+</script>
+</body>
+</html>

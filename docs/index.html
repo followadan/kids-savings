@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>存錢筒・家長端</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="存錢筒家長">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f6f3ee">
+<link rel="apple-touch-icon" href="icons/icon-parent-180.png">
+<link rel="icon" href="icons/icon-parent-180.png">
+<script src="config.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js" defer></script>
+<style>
+:root{
+  --bg:#f6f3ee; --card:#fff; --ink:#1f2328; --muted:#6b7280; --line:#e7e2d9;
+  --green:#1f8a5b; --green-soft:#e3f3ea; --red:#c2410c; --red-soft:#fdeee5;
+  --gold:#b7791f; --gold-soft:#fdf3dc; --blue:#2563eb; --radius:16px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
+  -webkit-text-size-adjust:100%;}
+body{padding:env(safe-area-inset-top) 0 calc(76px + env(safe-area-inset-bottom));}
+header{padding:18px 18px 6px;display:flex;justify-content:space-between;align-items:center}
+header h1{font-size:20px;margin:0}
+header .who{font-size:13px;color:var(--muted);text-align:right}
+main{padding:6px 14px 20px;max-width:640px;margin:0 auto}
+.card{background:var(--card);border-radius:var(--radius);padding:16px;margin:12px 0;border:1px solid var(--line)}
+.card h2{font-size:15px;margin:0 0 10px;color:var(--muted);font-weight:600}
+.balance{font-size:44px;font-weight:800;letter-spacing:-1px}
+.balance small{font-size:18px;font-weight:600;margin-left:4px}
+.sub{color:var(--muted);font-size:14px}
+.row{display:flex;align-items:center;gap:10px}
+.between{justify-content:space-between}
+.bar{height:10px;border-radius:5px;background:#eee8dd;overflow:hidden;flex:1}
+.bar>i{display:block;height:100%;background:var(--green);border-radius:5px}
+.srcrow{margin:8px 0}
+.srcrow .lbl{width:64px;font-size:14px}
+.srcrow .val{width:80px;text-align:right;font-variant-numeric:tabular-nums;font-size:14px}
+.stamps{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.stamp{width:26px;height:26px;border-radius:50%;border:2px dashed #d6cfc2;display:grid;place-items:center;font-size:14px}
+.stamp.on{border:2px solid var(--gold);background:var(--gold-soft)}
+.pill{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;background:#efeae1;color:var(--muted)}
+.pill.gold{background:var(--gold-soft);color:var(--gold)}
+button{font:inherit;border:0;border-radius:12px;padding:12px 14px;cursor:pointer;background:#efeae1;color:var(--ink)}
+button.primary{background:var(--green);color:#fff;font-weight:700}
+button.danger{background:var(--red-soft);color:var(--red)}
+button.small{padding:6px 10px;font-size:13px;border-radius:9px}
+button:disabled{opacity:.5}
+.seg{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.seg button{flex:1;min-width:70px}
+.seg button.on{background:var(--ink);color:#fff}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.chips button{padding:10px 14px}
+label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+input,select{font:inherit;width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--ink)}
+input[type=number]{font-size:22px;font-weight:700}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.taskbtn{text-align:left;background:var(--gold-soft);padding:14px;border-radius:14px}
+.taskbtn b{display:block;font-size:16px}
+.taskbtn span{font-size:13px;color:var(--gold)}
+.list .item{display:flex;gap:10px;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--line)}
+.list .item:last-child{border-bottom:0}
+.list .amt{font-weight:800;font-variant-numeric:tabular-nums;min-width:76px;text-align:right}
+.pos{color:var(--green)} .neg{color:var(--red)}
+.item .meta{flex:1;min-width:0}
+.item .meta div{font-size:15px}
+.item .meta small{color:var(--muted);font-size:12px}
+.item.rev{opacity:.45}
+.item.rev .amt{text-decoration:line-through}
+nav{position:fixed;left:0;right:0;bottom:0;background:#fffdf9;border-top:1px solid var(--line);
+  display:flex;padding:6px 6px calc(6px + env(safe-area-inset-bottom));z-index:5}
+nav button{flex:1;background:none;padding:8px 0;font-size:12px;color:var(--muted);border-radius:10px}
+nav button .ic{display:block;font-size:20px}
+nav button.on{color:var(--ink);font-weight:700;background:#f1ece3}
+#login{max-width:420px;margin:12vh auto;text-align:center;padding:20px}
+#login .logo{font-size:64px}
+#gbtn{display:flex;justify-content:center;margin-top:20px;min-height:44px}
+.toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translateX(-50%);
+  background:var(--ink);color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;z-index:20;
+  max-width:90vw;opacity:0;transition:.2s;pointer-events:none}
+.toast.show{opacity:1}
+.toast.err{background:var(--red)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:flex-end;justify-content:center;z-index:10}
+.modal.show{display:flex}
+.modal .sheet{background:#fff;width:100%;max-width:520px;border-radius:20px 20px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom))}
+.modal h3{margin:0 0 8px}
+.modal .acts{display:flex;gap:10px;margin-top:16px}
+.modal .acts button{flex:1}
+.loading{position:fixed;inset:0;background:rgba(246,243,238,.6);display:none;place-items:center;z-index:15;font-size:15px}
+.loading.show{display:grid}
+.hidden{display:none!important}
+.mini-table .r{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
+.mini-table .r:last-child{border-bottom:0}
+.mini-table .r .grow{flex:1;min-width:0}
+#qr img{width:180px;height:180px;image-rendering:pixelated}
+.linkbox{word-break:break-all;font-size:12px;background:#f4f0e8;padding:10px;border-radius:10px;margin:8px 0}
+</style>
+</head>
+<body>
+
+<div id="login" class="hidden">
+  <div class="logo">🐷</div>
+  <h1>存錢筒・家長端</h1>
+  <p class="sub">請用 Google 帳號登入<br>（帳號需先由爸媽在「設定 → 成員」加入）</p>
+  <div id="gbtn"></div>
+  <p id="loginMsg" class="sub" style="color:var(--red)"></p>
+</div>
+
+<div id="app" class="hidden">
+  <header>
+    <h1 id="title">存錢筒</h1>
+    <div class="who"><div id="whoName"></div><a href="#" id="logout" style="color:var(--muted);font-size:12px">登出</a></div>
+  </header>
+  <main>
+    <!-- 總覽 -->
+    <section data-tab="home">
+      <div class="card">
+        <h2 id="kidLabel">目前存款</h2>
+        <div class="balance"><span id="bal">0</span><small>元</small></div>
+        <div class="sub" id="interestHint"></div>
+      </div>
+      <div class="card">
+        <h2>存款來源</h2>
+        <div id="sources"></div>
+      </div>
+      <div class="card" id="goalCard">
+        <h2>存錢目標</h2>
+        <div id="goals"></div>
+      </div>
+      <div class="card">
+        <h2>集章卡</h2>
+        <div id="stampList"></div>
+      </div>
+    </section>
+
+    <!-- 記一筆 -->
+    <section data-tab="add" class="hidden">
+      <div class="card">
+        <div class="seg" id="addSeg"></div>
+        <div id="addMoney">
+          <label id="amtLabel">金額（元）</label>
+          <input type="number" id="amt" inputmode="numeric" min="1" placeholder="0">
+          <div class="chips" id="amtChips"></div>
+          <label id="noteLabel">備註（選填）</label>
+          <input id="note" maxlength="60" placeholder="例如：考試滿分">
+          <div style="margin-top:14px"><button class="primary" id="submitMoney" style="width:100%">確認</button></div>
+        </div>
+        <div id="addTask" class="hidden">
+          <p class="sub" style="margin-top:0">點一下任務，確認後記錄完成一次</p>
+          <div class="grid" id="taskGrid"></div>
+        </div>
+        <div id="addRedeem" class="hidden">
+          <p class="sub" style="margin-top:0">從存款扣除獎品金額</p>
+          <div class="grid" id="rewardGrid"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 明細 -->
+    <section data-tab="log" class="hidden">
+      <div class="card">
+        <div class="seg" id="logSeg">
+          <button data-f="all" class="on">全部</button>
+          <button data-f="mine">我記的</button>
+          <button data-f="in">收入</button>
+          <button data-f="out">支出</button>
+        </div>
+        <div class="list" id="logList"></div>
+      </div>
+    </section>
+
+    <!-- 設定（管理員） -->
+    <section data-tab="admin" class="hidden">
+      <div class="card">
+        <h2>小孩唯讀連結（放在 iPad 桌面）</h2>
+        <div id="qr" style="text-align:center"></div>
+        <div class="linkbox" id="kidLink"></div>
+        <div class="row">
+          <button class="small" id="copyKid">複製連結</button>
+          <button class="small danger" id="resetKid">重新產生（舊連結失效）</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>基本設定</h2>
+        <label>小孩名字</label><input id="setKid">
+        <div class="row">
+          <div style="flex:1"><label>每滿（元）</label><input type="number" id="setStep"></div>
+          <div style="flex:1"><label>每月利息（元）</label><input type="number" id="setPer"></div>
+        </div>
+        <p class="sub">每月 1 日凌晨依當時存款自動發息</p>
+        <button class="primary" id="saveSettings">儲存設定</button>
+      </div>
+      <div class="card">
+        <div class="row between"><h2 style="margin:0">成員</h2><button class="small" data-new="user">＋ 新增</button></div>
+        <div class="mini-table" id="userTable"></div>
+      </div>
+      <div class="card">
+        <div class="row between"><h2 style="margin:0">任務 / 集章規則</h2><button class="small" data-new="task">＋ 新增</button></div>
+        <div class="mini-table" id="taskTable"></div>
+      </div>
+      <div class="card">
+        <div class="row between"><h2 style="margin:0">兌換獎品</h2><button class="small" data-new="reward">＋ 新增</button></div>
+        <div class="mini-table" id="rewardTable"></div>
+      </div>
+      <div class="card">
+        <div class="row between"><h2 style="margin:0">存錢目標</h2><button class="small" data-new="goal">＋ 新增</button></div>
+        <div class="mini-table" id="goalTable"></div>
+      </div>
+    </section>
+  </main>
+
+  <nav id="nav">
+    <button data-tab="home" class="on"><span class="ic">🏠</span>總覽</button>
+    <button data-tab="add"><span class="ic">✏️</span>記一筆</button>
+    <button data-tab="log"><span class="ic">📒</span>明細</button>
+    <button data-tab="admin" id="navAdmin" class="hidden"><span class="ic">⚙️</span>設定</button>
+  </nav>
+</div>
+
+<div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
+<div class="loading" id="loading">處理中…</div>
+
+<script>
+'use strict';
+const CFG = window.APP_CONFIG || {};
+const TOKEN_KEY = 'ks_id_token';
+let S = null;                 // 伺服器回傳的狀態
+let addMode = 'deposit';
+let logFilter = 'all';
+
+// ---------- 工具 ----------
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => Number(n || 0).toLocaleString('zh-TW', { maximumFractionDigits: 2 });
+const signed = n => (n > 0 ? '+' : '') + fmt(n);
+function toast(msg, err) {
+  const t = $('#toast'); t.textContent = msg; t.className = 'toast show' + (err ? ' err' : '');
+  clearTimeout(t._h); t._h = setTimeout(() => t.className = 'toast', 2600);
+}
+function busy(on) { $('#loading').classList.toggle('show', on); }
+function timeStr(iso) {
+  const d = new Date(iso); if (isNaN(d)) return '';
+  return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function jwtExp(t) {
+  try { return JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).exp * 1000; } catch { return 0; }
+}
+function getToken() {
+  try { const t = localStorage.getItem(TOKEN_KEY); return t && jwtExp(t) > Date.now() + 60000 ? t : null; } catch { return null; }
+}
+function setToken(t) { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch {} }
+
+// ---------- API ----------
+async function api(action, payload = {}) {
+  const idToken = getToken();
+  if (!idToken) { showLogin(); throw new Error('請先登入'); }
+  busy(true);
+  try {
+    // 不設定 Content-Type（預設 text/plain），避免 CORS 預檢
+    const res = await fetch(CFG.API_URL, { method: 'POST', body: JSON.stringify({ action, idToken, ...payload }) });
+    const j = await res.json();
+    if (!j.ok) {
+      if (j.code === 'AUTH' || j.code === 'NOT_MEMBER') { setToken(null); showLogin(j.error); }
+      throw new Error(j.error || '發生錯誤');
+    }
+    S = j.data; render();
+    return j.data;
+  } finally { busy(false); }
+}
+async function act(action, payload, okMsg) {
+  try { await api(action, payload); if (okMsg) toast(okMsg); return true; }
+  catch (e) { toast(e.message, true); return false; }
+}
+
+// ---------- 登入 ----------
+function initGoogle() {
+  if (!window.google || !google.accounts) return setTimeout(initGoogle, 200);
+  google.accounts.id.initialize({
+    client_id: CFG.CLIENT_ID, callback: onCredential, auto_select: true,
+    cancel_on_tap_outside: false, use_fedcm_for_prompt: true,
+  });
+  google.accounts.id.renderButton($('#gbtn'), { theme: 'filled_blue', size: 'large', shape: 'pill', text: 'signin_with', locale: 'zh-TW' });
+}
+function onCredential(r) {
+  setToken(r.credential);
+  $('#loginMsg').textContent = '';
+  start();
+}
+function showLogin(msg) {
+  $('#app').classList.add('hidden'); $('#login').classList.remove('hidden');
+  if (msg) $('#loginMsg').textContent = msg;
+  initGoogle();
+  if (window.google && google.accounts) google.accounts.id.prompt();
+}
+async function start() {
+  if (!getToken()) return showLogin();
+  $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
+  try { await api('state'); } catch (e) { if (getToken()) toast(e.message, true); }
+}
+$('#logout').onclick = e => {
+  e.preventDefault(); setToken(null);
+  if (window.google && google.accounts) google.accounts.id.disableAutoSelect();
+  showLogin();
+};
+
+// ---------- 分頁 ----------
+$('#nav').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  document.querySelectorAll('#nav button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('main section').forEach(s => s.classList.toggle('hidden', s.dataset.tab !== b.dataset.tab));
+  window.scrollTo(0, 0);
+};
+
+// ---------- 畫面 ----------
+function render() {
+  if (!S) return;
+  const can = p => S.perms.includes(p);
+  $('#title').textContent = `${S.kidName}的存錢筒`;
+  $('#whoName').textContent = `${S.me.name}（${S.me.role === 'admin' ? '管理員' : '長輩'}）`;
+  $('#kidLabel').textContent = `${S.kidName}目前存款`;
+  $('#bal').textContent = fmt(S.balance);
+  $('#interestHint').textContent = S.nextInterest > 0 ? `下個月 1 日預計利息 +${fmt(S.nextInterest)} 元` : '存滿門檻就會開始有利息';
+  $('#navAdmin').classList.toggle('hidden', S.me.role !== 'admin');
+
+  // 來源
+  const inc = S.bySource.income, max = Math.max(1, ...inc.map(x => x.amount));
+  $('#sources').innerHTML = (inc.length ? inc.map(x => `
+    <div class="row srcrow"><div class="lbl">${esc(x.source)}</div>
+    <div class="bar"><i style="width:${Math.max(2, x.amount / max * 100)}%"></i></div>
+    <div class="val pos">${fmt(x.amount)}</div></div>`).join('') : '<p class="sub">還沒有紀錄</p>') +
+    (S.bySource.outgoing ? `<div class="row srcrow"><div class="lbl">支出</div><div class="bar"></div><div class="val neg">${fmt(S.bySource.outgoing)}</div></div>` : '');
+
+  // 目標
+  const active = S.goals.filter(g => g.status === 'active');
+  $('#goalCard').classList.toggle('hidden', !active.length);
+  $('#goals').innerHTML = active.map(g => `
+    <div style="margin:10px 0">
+      <div class="row between"><b>${esc(g.name)}</b><span class="sub">${fmt(g.target)} 元</span></div>
+      <div class="row" style="margin-top:6px"><div class="bar"><i style="width:${g.progress * 100}%"></i></div>
+      <span class="pill ${g.progress >= 1 ? 'gold' : ''}">${g.progress >= 1 ? '可以買了！' : '還差 ' + fmt(g.remain)}</span></div>
+      ${S.me.role === 'admin' && g.progress >= 1 ? `<button class="small primary" style="margin-top:8px" data-achieve="${esc(g.id)}">標記達成並扣款</button>` : ''}
+    </div>`).join('');
+
+  // 集章
+  $('#stampList').innerHTML = S.stamps.length ? S.stamps.map(s => `
+    <div style="margin:10px 0 14px">
+      <div class="row between"><b>${esc(s.name)}</b><span class="pill gold">已集滿 ${s.cards} 張</span></div>
+      <div class="sub" style="font-size:12px">集滿 ${s.target} 章加碼 ${fmt(s.bonus)} 元・累計完成 ${s.total} 次</div>
+      <div class="stamps">${Array.from({ length: s.target }, (_, i) => `<div class="stamp ${i < s.inCard ? 'on' : ''}">${i < s.inCard ? '⭐' : ''}</div>`).join('')}</div>
+    </div>`).join('') : '<p class="sub">尚未設定集章任務</p>';
+
+  // 記一筆
+  const modes = [['deposit','給錢'],['deduct','扣錢'],['task','任務']];
+  if (can('spend')) modes.push(['spend','花費']);
+  if (can('redeem')) modes.push(['redeem','兌換']);
+  if (!modes.some(m => m[0] === addMode)) addMode = 'deposit';
+  $('#addSeg').innerHTML = modes.map(([k, v]) => `<button data-m="${k}" class="${k === addMode ? 'on' : ''}">${v}</button>`).join('');
+  renderAddMode();
+  $('#taskGrid').innerHTML = S.tasks.map(t => `
+    <button class="taskbtn" data-task="${esc(t.id)}"><b>${esc(t.name)}</b>
+    <span>+${fmt(t.amount)} 元${t.stamp_target ? `・集章 ${t.stamp_target}` : ''}</span></button>`).join('') || '<p class="sub">尚無任務</p>';
+  $('#rewardGrid').innerHTML = S.rewards.map(r => `
+    <button class="taskbtn" data-reward="${esc(r.id)}"><b>${esc(r.name)}</b><span>−${fmt(r.price)} 元</span></button>`).join('') || '<p class="sub">尚無獎品，請到設定新增</p>';
+
+  renderLog();
+  if (S.admin) renderAdmin();
+}
+
+function renderAddMode() {
+  const m = addMode;
+  $('#addMoney').classList.toggle('hidden', m === 'task' || m === 'redeem');
+  $('#addTask').classList.toggle('hidden', m !== 'task');
+  $('#addRedeem').classList.toggle('hidden', m !== 'redeem');
+  const cfg = {
+    deposit: ['給多少錢（元）', '備註（選填）', '例如：考試滿分、紅包', [10, 50, 100, 200, 500, 1000]],
+    deduct:  ['扣多少錢（元）', '原因（選填）', '例如：約定的處罰', [10, 20, 50, 100]],
+    spend:   ['花了多少錢（元）', '買了什麼（必填）', '例如：文具、飲料', [30, 50, 100, 200]],
+  }[m];
+  if (!cfg) return;
+  $('#amtLabel').textContent = cfg[0]; $('#noteLabel').textContent = cfg[1]; $('#note').placeholder = cfg[2];
+  $('#amtChips').innerHTML = cfg[3].map(v => `<button data-v="${v}">${v}</button>`).join('');
+  const b = $('#submitMoney');
+  b.textContent = { deposit: '確認給錢', deduct: '確認扣錢', spend: '確認記錄花費' }[m];
+  b.className = m === 'deposit' ? 'primary' : 'danger';
+  b.style.width = '100%';
+}
+
+function renderLog() {
+  const f = logFilter, me = S.me;
+  const rows = S.ledger.filter(r =>
+    f === 'all' ? true : f === 'mine' ? r.actor === me.name : f === 'in' ? r.amount > 0 && r.type !== 'reversal' : r.amount < 0 && r.type !== 'reversal');
+  $('#logList').innerHTML = rows.length ? rows.map(r => `
+    <div class="item ${r.reversed ? 'rev' : ''}">
+      <div class="meta"><div>${esc(r.typeLabel)}${r.note ? '・' + esc(r.note) : ''}</div>
+      <small>${timeStr(r.time)}・${esc(r.actor)}${r.source && r.source !== r.actor ? '（來源：' + esc(r.source) + '）' : ''}${r.reversed ? '・已撤銷' : ''}</small></div>
+      <div style="text-align:right"><div class="amt ${r.amount >= 0 ? 'pos' : 'neg'}">${signed(r.amount)}</div>
+      ${r.canReverse ? `<button class="small danger" style="margin-top:6px" data-rev="${esc(r.id)}">撤銷</button>` : ''}</div>
+    </div>`).join('') : '<p class="sub">沒有紀錄</p>';
+}
+
+function renderAdmin() {
+  const A = S.admin;
+  const link = location.origin + location.pathname.replace(/[^/]*$/, '') + 'kid.html?k=' + A.kidToken;
+  $('#kidLink').textContent = link;
+  $('#qr').innerHTML = '';
+  if (window.qrcode) { const q = qrcode(0, 'M'); q.addData(link); q.make(); $('#qr').innerHTML = q.createImgTag(5, 8); }
+  $('#setKid').value = A.settings.kid_name || '';
+  $('#setStep').value = A.settings.interest_step;
+  $('#setPer').value = A.settings.interest_per_step;
+  $('#userTable').innerHTML = A.users.map(u => `
+    <div class="r ${u.active ? '' : 'rev'}"><div class="grow"><b>${esc(u.name)}</b> <span class="pill">${u.role === 'admin' ? '管理員' : '長輩'}</span>${u.active ? '' : ' <span class="pill">停用</span>'}<br><small class="sub">${esc(u.email)}</small></div>
+    <button class="small" data-edit-user="${esc(u.email)}">編輯</button></div>`).join('');
+  $('#taskTable').innerHTML = A.allTasks.map(t => `
+    <div class="r"><div class="grow"><b>${esc(t.name)}</b>${t.active ? '' : ' <span class="pill">停用</span>'}<br><small class="sub">每次 ${fmt(t.amount)} 元${t.stamp_target ? `・集滿 ${t.stamp_target} 章加 ${fmt(t.stamp_bonus)} 元` : ''}</small></div>
+    <button class="small" data-edit-task="${esc(t.id)}">編輯</button></div>`).join('') || '<p class="sub">無</p>';
+  $('#rewardTable').innerHTML = A.allRewards.map(r => `
+    <div class="r"><div class="grow"><b>${esc(r.name)}</b>${r.active ? '' : ' <span class="pill">停用</span>'}<br><small class="sub">${fmt(r.price)} 元</small></div>
+    <button class="small" data-edit-reward="${esc(r.id)}">編輯</button></div>`).join('') || '<p class="sub">無</p>';
+  $('#goalTable').innerHTML = S.goals.map(g => `
+    <div class="r ${g.status === 'active' ? '' : 'rev'}"><div class="grow"><b>${esc(g.name)}</b> <span class="pill">${{active:'進行中',done:'已達成',cancelled:'已取消'}[g.status] || g.status}</span><br><small class="sub">目標 ${fmt(g.target)} 元</small></div>
+    ${g.status === 'active' ? `<button class="small" data-edit-goal="${esc(g.id)}">編輯</button>` : ''}</div>`).join('') || '<p class="sub">無</p>';
+}
+
+// ---------- 確認視窗 / 表單 ----------
+let pendingConfirm = null;
+function sheet(html) { $('#sheet').innerHTML = html; $('#modal').classList.add('show'); }
+function closeSheet(result) {
+  $('#modal').classList.remove('show');
+  if (pendingConfirm) { const r = pendingConfirm; pendingConfirm = null; r(!!result); }
+}
+$('#modal').addEventListener('click', e => {
+  if (e.target.id === 'modal' || e.target.closest('[data-close]')) { e.stopPropagation(); closeSheet(false); }
+});
+function confirmSheet(title, body, okText, danger) {
+  if (pendingConfirm) closeSheet(false);
+  return new Promise(res => {
+    sheet(`<h3>${esc(title)}</h3><p class="sub">${body}</p>
+      <div class="acts"><button data-close>取消</button><button class="${danger ? 'danger' : 'primary'}" id="okBtn">${esc(okText)}</button></div>`);
+    pendingConfirm = res;
+    $('#okBtn').onclick = e => { e.stopPropagation(); closeSheet(true); };
+  });
+}
+function formSheet(title, fields, onSave) {
+  sheet(`<h3>${esc(title)}</h3>${fields.map(f => f.type === 'select'
+      ? `<label>${esc(f.label)}</label><select id="f_${f.k}">${f.options.map(([v, t]) => `<option value="${esc(v)}" ${String(f.v) === String(v) ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>`
+      : f.type === 'check'
+      ? `<label style="display:flex;gap:8px;align-items:center;color:var(--ink)"><input type="checkbox" id="f_${f.k}" style="width:auto" ${f.v ? 'checked' : ''}>${esc(f.label)}</label>`
+      : `<label>${esc(f.label)}</label><input id="f_${f.k}" type="${f.type || 'text'}" value="${esc(f.v ?? '')}" ${f.ro ? 'readonly' : ''} placeholder="${esc(f.ph || '')}">`).join('')}
+    <div class="acts"><button data-close>取消</button><button class="primary" id="saveBtn">儲存</button></div>`);
+  $('#saveBtn').onclick = async () => {
+    const o = {}; fields.forEach(f => { const el = $('#f_' + f.k); o[f.k] = f.type === 'check' ? el.checked : el.value; });
+    if (await onSave(o)) closeSheet();
+  };
+}
+
+// ---------- 事件 ----------
+document.addEventListener('click', async e => {
+  const t = e.target.closest('button'); if (!t || !S) return;
+  const d = t.dataset;
+
+  if (d.m) { addMode = d.m; document.querySelectorAll('#addSeg button').forEach(b => b.classList.toggle('on', b === t)); renderAddMode(); return; }
+  if (d.v) { $('#amt').value = d.v; return; }
+  if (d.f) { logFilter = d.f; document.querySelectorAll('#logSeg button').forEach(b => b.classList.toggle('on', b === t)); renderLog(); return; }
+
+  if (d.task) {
+    const task = S.tasks.find(x => x.id === d.task);
+    const st = S.stamps.find(x => x.id === d.task);
+    const willBonus = st && st.inCard + 1 === st.target;
+    if (await confirmSheet(`完成「${task.name}」？`, `+${fmt(task.amount)} 元${willBonus ? `<br>🎉 這次會集滿 ${st.target} 章，再加碼 ${fmt(st.bonus)} 元！` : ''}`, '確認完成'))
+      act('task', { taskId: d.task }, `已記錄：${task.name}`);
+    return;
+  }
+  if (d.reward) {
+    const r = S.rewards.find(x => x.id === d.reward);
+    if (await confirmSheet(`兌換「${r.name}」？`, `將從存款扣除 ${fmt(r.price)} 元`, '確認兌換', true)) act('redeem', { rewardId: d.reward }, '兌換完成');
+    return;
+  }
+  if (d.rev) {
+    const r = S.ledger.find(x => x.id === d.rev);
+    if (await confirmSheet('撤銷這筆紀錄？', `${esc(r.typeLabel)} ${signed(r.amount)} 元<br>系統會新增一筆反向紀錄，原紀錄保留`, '確認撤銷', true)) act('reverse', { id: d.rev }, '已撤銷');
+    return;
+  }
+  if (d.achieve) {
+    const g = S.goals.find(x => x.id === d.achieve);
+    if (await confirmSheet(`達成「${g.name}」？`, `將從存款扣除 ${fmt(g.target)} 元，目標標記為已達成`, '確認', true)) act('goalAchieve', { id: d.achieve }, '恭喜達成目標！');
+    return;
+  }
+
+  // 管理：新增 / 編輯
+  if (d.new === 'user' || d.editUser) {
+    const u = S.admin.users.find(x => x.email === d.editUser) || { email: '', name: '', role: 'giver', active: true };
+    formSheet(d.editUser ? '編輯成員' : '新增成員', [
+      { k: 'email', label: 'Google 帳號 email', v: u.email, ro: !!d.editUser, ph: 'grandpa@gmail.com', type: 'email' },
+      { k: 'name', label: '顯示名稱', v: u.name, ph: '爺爺 / 奶奶 / 外公…' },
+      { k: 'role', label: '角色', v: u.role, type: 'select', options: [['giver', '長輩（給錢、扣錢、記任務）'], ['admin', '管理員（爸媽：全部權限）']] },
+      { k: 'active', label: '啟用', v: u.active, type: 'check' },
+    ], o => act('saveUser', o, '已儲存成員'));
+    return;
+  }
+  if (d.new === 'task' || d.editTask) {
+    const x = S.admin.allTasks.find(t => t.id === d.editTask) || { name: '', amount: 10, stamp_target: 10, stamp_bonus: 50, active: true };
+    formSheet(d.editTask ? '編輯任務' : '新增任務', [
+      { k: 'name', label: '任務名稱', v: x.name, ph: '洗碗' },
+      { k: 'amount', label: '每完成一次給（元，可為 0）', v: x.amount, type: 'number' },
+      { k: 'stamp_target', label: '集滿幾章（0 = 不集章）', v: x.stamp_target, type: 'number' },
+      { k: 'stamp_bonus', label: '集滿後加碼（元）', v: x.stamp_bonus, type: 'number' },
+      { k: 'active', label: '啟用', v: x.active, type: 'check' },
+    ], o => act('saveTask', { ...o, id: d.editTask }, '已儲存任務'));
+    return;
+  }
+  if (d.new === 'reward' || d.editReward) {
+    const x = S.admin.allRewards.find(r => r.id === d.editReward) || { name: '', price: 100, active: true };
+    formSheet(d.editReward ? '編輯獎品' : '新增獎品', [
+      { k: 'name', label: '獎品名稱', v: x.name, ph: '寶可夢卡一包' },
+      { k: 'price', label: '兌換金額（元）', v: x.price, type: 'number' },
+      { k: 'active', label: '上架', v: x.active, type: 'check' },
+    ], o => act('saveReward', { ...o, id: d.editReward }, '已儲存獎品'));
+    return;
+  }
+  if (d.new === 'goal' || d.editGoal) {
+    const x = S.goals.find(g => g.id === d.editGoal) || { name: '', target: 2000, status: 'active' };
+    formSheet(d.editGoal ? '編輯目標' : '新增目標', [
+      { k: 'name', label: '想買的東西', v: x.name, ph: '戰鬥陀螺' },
+      { k: 'target', label: '目標金額（元）', v: x.target, type: 'number' },
+      { k: 'status', label: '狀態', v: x.status, type: 'select', options: [['active', '進行中'], ['cancelled', '取消']] },
+    ], o => act('saveGoal', { ...o, id: d.editGoal }, '已儲存目標'));
+    return;
+  }
+});
+
+$('#submitMoney').onclick = async () => {
+  const amount = Number($('#amt').value), note = $('#note').value.trim();
+  if (!(amount > 0)) return toast('請輸入金額', true);
+  if (addMode === 'spend' && !note) return toast('請填寫買了什麼', true);
+  const verb = { deposit: '給', deduct: '扣', spend: '記錄花費' }[addMode];
+  if (!(await confirmSheet(`確認${verb} ${fmt(amount)} 元？`, esc(note) || '（無備註）', '確認', addMode !== 'deposit'))) return;
+  if (await act(addMode, { amount, note }, '已記錄')) { $('#amt').value = ''; $('#note').value = ''; }
+};
+$('#saveSettings').onclick = () => act('saveSettings', {
+  kid_name: $('#setKid').value, interest_step: $('#setStep').value, interest_per_step: $('#setPer').value,
+}, '設定已儲存');
+$('#copyKid').onclick = async () => {
+  try { await navigator.clipboard.writeText($('#kidLink').textContent); toast('已複製'); } catch { toast('請長按連結手動複製', true); }
+};
+$('#resetKid').onclick = async () => {
+  if (await confirmSheet('重新產生小孩連結？', 'iPad 上的舊連結會立刻失效，需要重新加入主畫面', '重新產生', true)) act('resetKidToken', {}, '已產生新連結');
+};
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S && getToken()) api('state').catch(() => {}); });
+
+// ---------- 啟動 ----------
+if (!CFG.API_URL || CFG.API_URL.includes('PASTE_')) {
+  document.body.innerHTML = '<div id="login"><div class="logo">⚙️</div><h1>尚未設定</h1><p class="sub">請先編輯 config.js 填入 API_URL 與 CLIENT_ID</p></div>';
+} else {
+  start();
+}
+</script>
+</body>
+</html>
