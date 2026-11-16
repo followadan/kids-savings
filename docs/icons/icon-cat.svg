@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#fbe7c6"/>
+  <circle cx="256" cy="256" r="196" fill="#f5d39a" opacity=".5"/>
+  <!-- ears -->
+  <path d="M118 210 L132 86 L222 150 Z" fill="#2d2a2e"/>
+  <path d="M394 210 L380 86 L290 150 Z" fill="#e58a3c"/>
+  <path d="M142 182 L150 120 L200 158 Z" fill="#f4b8b8"/>
+  <path d="M370 182 L362 120 L312 158 Z" fill="#f4b8b8"/>
+  <!-- face white -->
+  <ellipse cx="256" cy="250" rx="160" ry="134" fill="#ffffff"/>
+  <!-- calico patches -->
+  <path d="M110 230 q10 -110 120 -114 q-20 60 -40 90 q-40 20 -80 24z" fill="#2d2a2e"/>
+  <path d="M402 230 q-10 -110 -120 -114 q16 50 46 84 q40 24 74 30z" fill="#e58a3c"/>
+  <!-- eyes closed happy -->
+  <path d="M168 250 q22 -26 44 0" stroke="#2d2a2e" stroke-width="10" fill="none" stroke-linecap="round"/>
+  <path d="M300 250 q22 -26 44 0" stroke="#2d2a2e" stroke-width="10" fill="none" stroke-linecap="round"/>
+  <path d="M242 278 h28 l-14 15 z" fill="#ec7f8f"/>
+  <path d="M256 293 q-12 14 -26 6 M256 293 q12 14 26 6" stroke="#2d2a2e" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <ellipse cx="170" cy="288" rx="18" ry="10" fill="#f4a3a3" opacity=".7"/>
+  <ellipse cx="342" cy="288" rx="18" ry="10" fill="#f4a3a3" opacity=".7"/>
+  <!-- big coin held -->
+  <circle cx="256" cy="392" r="88" fill="#e9a91c"/>
+  <circle cx="256" cy="392" r="70" fill="#f8c94a"/>
+  <circle cx="256" cy="392" r="70" fill="none" stroke="#e9a91c" stroke-width="6" stroke-dasharray="4 10"/>
+  <text x="256" y="420" text-anchor="middle" font-family="Noto Sans CJK TC" font-weight="900" font-size="80" fill="#b5760a">元</text>
+  <!-- paws -->
+  <ellipse cx="170" cy="376" rx="40" ry="32" fill="#ffffff" stroke="#efe3d3" stroke-width="4"/>
+  <ellipse cx="342" cy="376" rx="40" ry="32" fill="#ffffff" stroke="#efe3d3" stroke-width="4"/>
+  <path d="M158 362 v16 M172 360 v18 M186 362 v16 M326 362 v16 M340 360 v18 M354 362 v16" stroke="#e6d6c2" stroke-width="4" stroke-linecap="round"/>
+</svg>
