@@ -49,6 +49,9 @@ main{padding:6px 14px 20px;max-width:640px;margin:0 auto}
 .card{background:var(--card);border-radius:var(--radius);padding:16px;margin:12px 0;border:1px solid var(--line)}
 .card h2{font-size:15px;margin:0 0 10px;color:var(--muted);font-weight:600}
 .balance{font-size:44px;font-weight:800;letter-spacing:-1px}
+.refresh{background:var(--green-soft);color:var(--green);font-weight:700;padding:10px 14px;flex-shrink:0}
+.refresh.busy .spin{display:inline-block;animation:rot .8s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
 .balance small{font-size:18px;font-weight:600;margin-left:4px}
 .sub{color:var(--muted);font-size:14px}
 .row{display:flex;align-items:center;gap:10px}
@@ -138,7 +141,8 @@ nav button.on{color:var(--ink);font-weight:700;background:#f1ece3}
     <section data-tab="home">
       <div class="card">
         <h2 id="kidLabel">目前存款</h2>
-        <div class="balance"><span id="bal">0</span><small>元</small></div>
+        <div class="row between"><div class="balance"><span id="bal">0</span><small>元</small></div>
+          <button class="refresh" id="refreshBtn" aria-label="更新資料"><span class="spin">↻</span> 更新</button></div>
         <div class="sub" id="interestHint"></div>
       </div>
       <div class="card" id="historyCard">
@@ -566,6 +570,11 @@ $('#submitMoney').onclick = async () => {
   const verb = { deposit: '給', deduct: '扣', spend: '記錄花費' }[addMode];
   if (!(await confirmSheet(`確認${verb} ${fmt(amount)} 元？`, esc(note) || '（無備註）', '確認', addMode !== 'deposit'))) return;
   if (await act(addMode, { amount, note }, '已記錄')) { $('#amt').value = ''; $('#note').value = ''; }
+};
+$('#refreshBtn').onclick = async () => {
+  const b = $('#refreshBtn'); if (b.classList.contains('busy')) return;
+  b.classList.add('busy');
+  try { await api('state'); toast('已更新'); } catch (e) { toast(e.message, true); } finally { b.classList.remove('busy'); }
 };
 $('#saveSettings').onclick = () => act('saveSettings', {
   kid_name: $('#setKid').value, interest_step: $('#setStep').value, interest_per_step: $('#setPer').value,

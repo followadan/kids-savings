@@ -29,6 +29,11 @@ body{padding:calc(16px + env(safe-area-inset-top)) 16px calc(24px + env(safe-are
 .hello{font-size:22px;margin:10px 0 2px;font-weight:700}
 .money{font-size:clamp(56px,14vw,96px);font-weight:900;color:var(--orange);letter-spacing:-2px;font-variant-numeric:tabular-nums}
 .money small{font-size:.35em;margin-left:6px;color:var(--ink)}
+.moneyrow{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap}
+.refresh{font:inherit;font-size:18px;font-weight:800;border:0;border-radius:16px;padding:12px 18px;background:#fff;color:var(--orange);box-shadow:0 3px 0 #f0dfbd;cursor:pointer}
+.refresh:active{transform:translateY(2px);box-shadow:0 1px 0 #f0dfbd}
+.refresh.busy .spin{display:inline-block;animation:rot .8s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-top:16px}
 .card{background:var(--card);border-radius:24px;padding:20px;box-shadow:0 4px 0 #f0dfbd}
 .card h2{margin:0 0 12px;font-size:20px}
@@ -92,7 +97,7 @@ function render(d) {
     <div class="hero">
       <img class="pig" src="icons/icon-cat.svg" alt="">
       <div class="hello">${esc(d.kidName)}的存錢筒</div>
-      <div class="money">${fmt(d.balance)}<small>元</small></div>
+      <div class="moneyrow"><div class="money">${fmt(d.balance)}<small>元</small></div><button class="refresh" id="refreshBtn" aria-label="更新資料"><span class="spin">↻</span> 更新</button></div>
     </div>
     <div class="grid">
       <div class="card"><h2>🎯 我的目標</h2>${goals || '<div class="empty">還沒有目標，跟爸媽一起訂一個吧！</div>'}
@@ -105,6 +110,12 @@ function render(d) {
     renderSavingsChart(document.getElementById('kidChart'), d.history, { color: '#f08a24', ink: '#3b2f20', muted: '#8a7a63', grid: '#f3e6cc' });
 }
 
+document.addEventListener('click', async e => {
+  const b = e.target.closest('#refreshBtn'); if (!b || b.classList.contains('busy')) return;
+  b.classList.add('busy');
+  await load();
+  const nb = document.getElementById('refreshBtn'); if (nb) nb.classList.remove('busy');
+});
 load();
 document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
 setInterval(load, 5 * 60 * 1000);
