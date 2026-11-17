@@ -445,6 +445,7 @@ function kidView_() {
     goals: goals_(ledger).filter(g => g.status === 'active').map(g => ({ name: g.name, target: g.target, progress: g.progress })),
     doneGoals: goals_(ledger).filter(g => g.status === 'done').length,
     history: monthlyHistory_(ledger),
+    ledger: kidLedger_(ledger),
     stamps: stamps_(eff, readRows_(SHEETS.TASKS)).map(s => ({
       name: s.name, inCard: s.inCard, target: s.target, cards: s.cards, total: s.total,
     })),
@@ -457,6 +458,14 @@ function effectiveLedger_(ledger) {
   const reversed = {};
   ledger.forEach(r => { if (r.type === 'reversal') reversed[r.link_id] = true; });
   return ledger.filter(r => r.type !== 'reversal' && !reversed[r.id]);
+}
+
+/** 小孩端明細：只列有效紀錄（已撤銷的與撤銷紀錄本身不顯示），最新 200 筆 */
+function kidLedger_(ledger) {
+  return effectiveLedger_(ledger).slice(-200).reverse().map(r => ({
+    time: iso_(r.time), type: r.type, typeLabel: TYPE_LABEL[r.type] || r.type,
+    amount: Number(r.amount), source: r.source, note: r.note,
+  }));
 }
 
 /** 每月月底累積存款（含撤銷，與總存款一致）：從第一筆紀錄的月份到本月 */

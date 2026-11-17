@@ -52,6 +52,18 @@ body{padding:calc(16px + env(safe-area-inset-top)) 16px calc(24px + env(safe-are
 .dot.on{border:3px solid var(--gold);background:#fff6d6}
 .empty{color:var(--muted);font-size:16px}
 .wide{grid-column:1/-1}
+.lghead{display:flex;justify-content:space-between;align-items:center}
+.lghead h2{margin:0}
+.toggle{font:inherit;font-size:16px;font-weight:700;border:0;border-radius:12px;padding:8px 14px;background:#fff1c2;color:#9a6b00;cursor:pointer}
+.lg{margin-top:10px}
+.lgrow{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px dashed #f0dfbd}
+.lgrow:last-child{border-bottom:0}
+.lgdate{width:52px;color:var(--muted);font-size:15px;font-variant-numeric:tabular-nums}
+.lgmain{flex:1;min-width:0;font-size:17px}
+.lgmain small{display:block;color:var(--muted);font-size:13px}
+.lgamt{font-weight:900;font-size:19px;font-variant-numeric:tabular-nums}
+.in{color:var(--green)} .out{color:#d9534f}
+.more{display:block;width:100%;margin-top:10px;font:inherit;font-size:16px;border:0;border-radius:12px;padding:10px;background:#fff6e0;color:#9a6b00;cursor:pointer}
 .foot{text-align:center;color:var(--muted);font-size:13px;margin-top:18px}
 .err{text-align:center;margin-top:20vh;font-size:20px}
 </style>
@@ -63,6 +75,8 @@ body{padding:calc(16px + env(safe-area-inset-top)) 16px calc(24px + env(safe-are
 const CFG = window.APP_CONFIG || {};
 const KEY = 'ks_kid_token';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let ledgerOpen = false, ledgerShown = 20, lastData = null;
+try { ledgerOpen = localStorage.getItem('ks_kid_ledger_open') === '1'; } catch {}
 const fmt = n => Number(n || 0).toLocaleString('zh-TW', { maximumFractionDigits: 0 });
 
 // 專屬碼：優先用網址的 ?k=，並存起來當備份
@@ -80,7 +94,21 @@ async function load() {
 }
 function fail(msg) { document.getElementById('root').innerHTML = `<div class="err"><img src="icons/icon-cat.svg" alt=""><br>${esc(msg)}</div>`; }
 
+function ledgerCard(rows) {
+  const md = iso => { const t = new Date(iso); return isNaN(t) ? '' : `${t.getMonth() + 1}/${t.getDate()}`; };
+  const list = rows.slice(0, ledgerShown).map(r => `
+    <div class="lgrow"><div class="lgdate">${md(r.time)}</div>
+      <div class="lgmain">${esc(r.typeLabel)}${r.note ? '・' + esc(r.note) : ''}${r.amount > 0 && r.source && r.type !== 'interest' ? `<small>${esc(r.source)}給的</small>` : ''}</div>
+      <div class="lgamt ${r.amount >= 0 ? 'in' : 'out'}">${r.amount > 0 ? '+' : r.amount < 0 ? '−' : ''}${fmt(Math.abs(r.amount))}</div></div>`).join('');
+  return `<div class="card wide">
+    <div class="lghead"><h2>📒 明細</h2><button class="toggle" id="lgToggle">${ledgerOpen ? '收合 ▴' : `展開 ▾（${rows.length} 筆）`}</button></div>
+    ${ledgerOpen ? `<div class="lg">${list || '<div class="empty">還沒有紀錄</div>'}</div>
+      ${rows.length > ledgerShown ? `<button class="more" id="lgMore">再看更多（還有 ${rows.length - ledgerShown} 筆）</button>` : ''}` : ''}
+  </div>`;
+}
+
 function render(d) {
+  lastData = d;
   const goals = d.goals.map(g => `
     <div class="goal">
       <div class="t">${esc(g.name)}<span>${fmt(g.target)} 元</span></div>
@@ -104,12 +132,22 @@ function render(d) {
         ${d.doneGoals ? `<div class="empty" style="margin-top:8px">已經完成 ${d.doneGoals} 個目標 👏</div>` : ''}</div>
       <div class="card"><h2>⭐ 集章卡</h2>${stamps || '<div class="empty">還沒有集章任務</div>'}</div>
       ${d.history ? '<div class="card wide"><h2>📈 我的存錢曲線</h2><div id="kidChart"></div></div>' : ''}
+      ${d.ledger ? ledgerCard(d.ledger) : ''}
     </div>
     <div class="foot">更新時間 ${new Date(d.updated).toLocaleString('zh-TW', { hour12: false })}</div>`;
   if (d.history && window.renderSavingsChart)
     renderSavingsChart(document.getElementById('kidChart'), d.history, { color: '#f08a24', ink: '#3b2f20', muted: '#8a7a63', grid: '#f3e6cc' });
 }
 
+document.addEventListener('click', e => {
+  if (e.target.closest('#lgToggle')) {
+    ledgerOpen = !ledgerOpen; ledgerShown = 20;
+    try { localStorage.setItem('ks_kid_ledger_open', ledgerOpen ? '1' : '0'); } catch {}
+    const y = window.scrollY; render(lastData); window.scrollTo(0, y);
+  } else if (e.target.closest('#lgMore')) {
+    ledgerShown += 20; const y = window.scrollY; render(lastData); window.scrollTo(0, y);
+  }
+});
 document.addEventListener('click', async e => {
   const b = e.target.closest('#refreshBtn'); if (!b || b.classList.contains('busy')) return;
   b.classList.add('busy');

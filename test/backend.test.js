@@ -128,7 +128,7 @@ assert.equal(r.data.ledger.filter(x => x.type === 'interest').length, 1);
 // kid view
 r = call({ action: 'kid', token: 'wrong' }); assert.equal(r.code, 'BAD_TOKEN');
 r = call({ action: 'kid', token: props.KID_TOKEN }); assert(r.ok);
-assert.equal(r.data.balance, 1490); assert(!('ledger' in r.data)); assert(!('bySource' in r.data));
+assert.equal(r.data.balance, 1490); assert(!('bySource' in r.data)); assert(!('admin' in r.data));
 assert.equal(r.data.goals[0].name, '戰鬥陀螺');
 // kid token cannot be used to write
 r = call({ action: 'deposit', token: props.KID_TOKEN, amount: 100 }); assert.equal(r.code, 'AUTH');
@@ -161,4 +161,15 @@ console.log(JSON.stringify(sheets.Ledger.rows.slice(0, 3)));
   const kid = call({ action: 'kid', token: props.KID_TOKEN }).data;
   assert.deepEqual(kid.history, h);
   console.log('HISTORY OK', JSON.stringify(h));
+}
+
+// ---- kid ledger ----
+{
+  const kid = call({ action: 'kid', token: props.KID_TOKEN }).data;
+  assert(Array.isArray(kid.ledger) && kid.ledger.length > 0);
+  assert(kid.ledger.every(r => r.type !== 'reversal'));
+  assert(!('actor_email' in kid.ledger[0]) && !('id' in kid.ledger[0]));
+  const sum = kid.ledger.reduce((s, r) => s + r.amount, 0);
+  assert.equal(Math.round(sum), Math.round(kid.balance));
+  console.log('KID LEDGER OK', kid.ledger.length, JSON.stringify(kid.ledger[0]));
 }
