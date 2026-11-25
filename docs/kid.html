@@ -83,15 +83,25 @@ const fmt = n => Number(n || 0).toLocaleString('zh-TW', { maximumFractionDigits:
 let token = new URLSearchParams(location.search).get('k');
 try { if (token) localStorage.setItem(KEY, token); else token = localStorage.getItem(KEY); } catch {}
 
+const DATA_KEY = 'ks_kid_data';
+let loading = false;
+function setBusy(on) { const b = document.getElementById('refreshBtn'); if (b) b.classList.toggle('busy', on); }
 async function load() {
   if (!token) return fail('這個連結少了專屬碼，請跟爸媽要正確的連結');
+  if (loading) return; loading = true; setBusy(true);
   try {
     const r = await fetch(CFG.API_URL, { method: 'POST', body: JSON.stringify({ action: 'kid', token }) });
     const j = await r.json();
-    if (!j.ok) return fail(j.error || '讀取失敗');
+    if (!j.ok) { try { localStorage.removeItem(DATA_KEY); } catch {} return fail(j.error || '讀取失敗'); }
+    try { localStorage.setItem(DATA_KEY, JSON.stringify(j.data)); } catch {}
     render(j.data);
-  } catch (e) { fail('網路好像斷了，等一下再試試看'); }
+  } catch (e) { if (!lastData) fail('網路好像斷了，等一下再試試看'); }
+  finally { loading = false; setBusy(false); }
 }
+// 先顯示上次的資料，背景再抓最新
+(function showCached() {
+  try { const d = JSON.parse(localStorage.getItem(DATA_KEY) || 'null'); if (d && token) render(d); } catch {}
+})();
 function fail(msg) { document.getElementById('root').innerHTML = `<div class="err"><img src="icons/icon-cat.svg" alt=""><br>${esc(msg)}</div>`; }
 
 function ledgerCard(rows) {
@@ -149,10 +159,8 @@ document.addEventListener('click', e => {
   }
 });
 document.addEventListener('click', async e => {
-  const b = e.target.closest('#refreshBtn'); if (!b || b.classList.contains('busy')) return;
-  b.classList.add('busy');
+  if (!e.target.closest('#refreshBtn')) return;
   await load();
-  const nb = document.getElementById('refreshBtn'); if (nb) nb.classList.remove('busy');
 });
 load();
 document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });

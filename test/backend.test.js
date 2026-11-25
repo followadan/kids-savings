@@ -40,8 +40,11 @@ const ctx = {
   Logger: { log() {} },
   Utilities: {
     computeDigest: (a, s) => Array.from(Buffer.from(require('crypto').createHash('sha256').update(s).digest())),
-    DigestAlgorithm: { SHA_256: 'sha256' },
-    base64EncodeWebSafe: b => Buffer.from(b).toString('base64url'),
+    DigestAlgorithm: { SHA_256: 'sha256', MD5: 'md5' },
+    base64EncodeWebSafe: b => Buffer.from(typeof b === 'string' ? Buffer.from(b, 'utf8') : b).toString('base64') .replace(/\+/g, '-').replace(/\//g, '_'),
+    base64DecodeWebSafe: s => Array.from(Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64')),
+    computeHmacSha256Signature: (v, k) => Array.from(require('crypto').createHmac('sha256', k).update(v).digest()),
+    newBlob: bytes => ({ getDataAsString: () => Buffer.from(bytes).toString('utf8') }),
     formatDate: (d, tz, f) => f === 'yyyy-MM' ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` : 'x' + (++uid),
     getUuid: () => require('crypto').randomUUID(),
   },
@@ -151,6 +154,7 @@ console.log(JSON.stringify(sheets.Ledger.rows.slice(0, 3)));
   L.splice(1, 0,
     ['H1', new Date(y, 7, 10), 'deposit', 500, '爺爺', 'grandpa@gmail.com', '爺爺', '', '', ''],
     ['H2', new Date(y, 9, 5), 'deposit', 300, '爺爺', 'grandpa@gmail.com', '爺爺', '', '', '']);
+  ctx.bumpVer_(); // 模擬手動編輯試算表（實際由 onEdit 觸發）
   const st = call({ action: 'state', idToken: dad }).data;
   const h = st.history;
   assert.equal(h[0].month, `${y}-08`);
@@ -172,4 +176,40 @@ console.log(JSON.stringify(sheets.Ledger.rows.slice(0, 3)));
   const sum = kid.ledger.reduce((s, r) => s + r.amount, 0);
   assert.equal(Math.round(sum), Math.round(kid.balance));
   console.log('KID LEDGER OK', kid.ledger.length, JSON.stringify(kid.ledger[0]));
+}
+
+// ---- session login (1 day) + cache invalidation ----
+{
+  ctx.MEMO = {};
+  const r = call({ action: 'login', idToken: gpa });
+  assert(r.ok, r.error);
+  const days = (r.sessionExp - Date.now()) / 86400000;
+  assert(days > 0.99 && days <= 1.0001, 'session should last 1 day, got ' + days);
+  const sess = r.session;
+  let s1 = call({ action: 'state', session: sess }); assert(s1.ok, s1.error); assert.equal(s1.data.me.name, '爺爺');
+  // write via session, state must reflect immediately (cache invalidated)
+  const before = s1.data.balance;
+  let w = call({ action: 'deposit', session: sess, amount: 5, note: 'cache' }); assert(w.ok, w.error);
+  assert.equal(w.data.balance, before + 5);
+  let s2 = call({ action: 'state', session: sess }); assert.equal(s2.data.balance, before + 5);
+  const k2 = call({ action: 'kid', token: props.KID_TOKEN }); assert.equal(k2.data.balance, before + 5);
+  // tampered / expired
+  const parts = sess.split('.');
+  assert.equal(call({ action: 'state', session: parts[0] + '.' + (Date.now() + 9e9) + '.' + parts[2] }).code, 'AUTH');
+  assert.equal(call({ action: 'state', session: 'x.y.z' }).code, 'AUTH');
+  const ZW = Buffer.from('dad@gmail.com').toString('base64').replace(/=+$/, '');
+  assert.equal(call({ action: 'state', session: ZW + '.' + parts[1] + '.' + parts[2] }).code, 'AUTH');
+  // disabling a member revokes immediately
+  call({ action: 'saveUser', idToken: dad, email: 'grandpa@gmail.com', name: '爺爺', role: 'giver', active: false });
+  assert.equal(call({ action: 'state', session: sess }).code, 'NOT_MEMBER');
+  call({ action: 'saveUser', idToken: dad, email: 'grandpa@gmail.com', name: '爺爺', role: 'giver', active: true });
+  assert(call({ action: 'state', session: sess }).ok);
+  // logout all devices
+  ctx.logoutAllDevices();
+  assert.equal(call({ action: 'state', session: sess }).code, 'AUTH');
+  // session_days setting respected (7 days)
+  sheets.Settings.rows.push(['session_days', 7]); ctx.bumpVer_();
+  const r7 = call({ action: 'login', idToken: gpa });
+  assert(Math.abs((r7.sessionExp - Date.now()) / 86400000 - 7) < 0.01);
+  console.log('SESSION + CACHE OK');
 }

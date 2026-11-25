@@ -254,7 +254,8 @@ nav button.on{color:var(--ink);font-weight:700;background:#f1ece3}
 <script>
 'use strict';
 const CFG = window.APP_CONFIG || {};
-const TOKEN_KEY = 'ks_id_token';
+const SESSION_KEY = 'ks_session';   // 自家登入憑證（預設 1 天）
+const STATE_KEY = 'ks_state_cache'; // 上次的資料，開啟時先顯示
 let S = null;                 // 伺服器回傳的狀態
 let addMode = 'deposit';
 let logFilter = 'all';
@@ -273,30 +274,41 @@ function timeStr(iso) {
   const d = new Date(iso); if (isNaN(d)) return '';
   return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
-function jwtExp(t) {
-  try { return JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).exp * 1000; } catch { return 0; }
+function getSession() {
+  try {
+    const o = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    return o && o.token && o.exp > Date.now() + 60000 ? o : null;
+  } catch { return null; }
 }
-function getToken() {
-  try { const t = localStorage.getItem(TOKEN_KEY); return t && jwtExp(t) > Date.now() + 60000 ? t : null; } catch { return null; }
+function setSession(o) { try { o ? localStorage.setItem(SESSION_KEY, JSON.stringify(o)) : localStorage.removeItem(SESSION_KEY); } catch {} }
+function getToken() { const o = getSession(); return o ? o.token : null; }
+function saveStateCache(data) { try { localStorage.setItem(STATE_KEY, JSON.stringify({ email: data.me.email, data })); } catch {} }
+function loadStateCache() {
+  try { const o = JSON.parse(localStorage.getItem(STATE_KEY) || 'null'); const s = getSession(); return o && s && o.email === s.email ? o.data : null; } catch { return null; }
 }
-function setToken(t) { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch {} }
+function clearLogin() { setSession(null); try { localStorage.removeItem(STATE_KEY); localStorage.removeItem('ks_id_token'); } catch {} }
 
 // ---------- API ----------
-async function api(action, payload = {}) {
-  const idToken = getToken();
-  if (!idToken) { showLogin(); throw new Error('請先登入'); }
-  busy(true);
+async function post(body) {
+  // 不設定 Content-Type（預設 text/plain），避免 CORS 預檢
+  const res = await fetch(CFG.API_URL, { method: 'POST', body: JSON.stringify(body) });
+  return res.json();
+}
+// silent = 背景更新：不蓋住畫面，只讓「更新」按鈕轉動
+async function api(action, payload = {}, silent = false) {
+  const sess = getSession();
+  if (!sess) { clearLogin(); showLogin('登入已過期，請重新登入'); throw new Error('請先登入'); }
+  const rb = $('#refreshBtn');
+  silent ? rb && rb.classList.add('busy') : busy(true);
   try {
-    // 不設定 Content-Type（預設 text/plain），避免 CORS 預檢
-    const res = await fetch(CFG.API_URL, { method: 'POST', body: JSON.stringify({ action, idToken, ...payload }) });
-    const j = await res.json();
+    const j = await post({ action, [sess.legacy ? 'idToken' : 'session']: sess.token, ...payload });
     if (!j.ok) {
-      if (j.code === 'AUTH' || j.code === 'NOT_MEMBER') { setToken(null); showLogin(j.error); }
+      if (j.code === 'AUTH' || j.code === 'NOT_MEMBER') { clearLogin(); showLogin(j.error); }
       throw new Error(j.error || '發生錯誤');
     }
-    S = j.data; render();
+    S = j.data; saveStateCache(S); render();
     return j.data;
-  } finally { busy(false); }
+  } finally { silent ? rb && rb.classList.remove('busy') : busy(false); }
 }
 async function act(action, payload, okMsg) {
   try { await api(action, payload); if (okMsg) toast(okMsg); return true; }
@@ -306,30 +318,49 @@ async function act(action, payload, okMsg) {
 // ---------- 登入 ----------
 function initGoogle() {
   if (!window.google || !google.accounts) return setTimeout(initGoogle, 200);
+  if (initGoogle.done) return; initGoogle.done = true;
   google.accounts.id.initialize({
-    client_id: CFG.CLIENT_ID, callback: onCredential, auto_select: true,
+    client_id: CFG.CLIENT_ID, callback: onCredential, auto_select: false,
     cancel_on_tap_outside: false, use_fedcm_for_prompt: true,
   });
   google.accounts.id.renderButton($('#gbtn'), { theme: 'filled_blue', size: 'large', shape: 'pill', text: 'signin_with', locale: 'zh-TW' });
 }
-function onCredential(r) {
-  setToken(r.credential);
+// Google 登入成功 → 換成自家登入憑證（預設 1 天有效）
+async function onCredential(r) {
   $('#loginMsg').textContent = '';
-  start();
+  busy(true);
+  try {
+    let j = await post({ action: 'login', idToken: r.credential });
+    if (!j.ok && j.code === 'BAD_ACTION') {
+      // 後端尚未更新到支援 1 天登入的版本：暫時沿用 Google 憑證（1 小時）
+      const exp = (() => { try { return JSON.parse(atob(r.credential.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).exp * 1000; } catch { return 0; } })();
+      j = await post({ action: 'state', idToken: r.credential });
+      if (j.ok) setSession({ token: r.credential, exp, email: j.data.me.email, legacy: true });
+    } else if (j.ok) {
+      setSession({ token: j.session, exp: j.sessionExp, email: j.data.me.email });
+    }
+    if (!j.ok) { $('#loginMsg').textContent = j.error || '登入失敗'; return; }
+    S = j.data; saveStateCache(S);
+    $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
+    render();
+  } catch (e) { $('#loginMsg').textContent = '網路錯誤，請再試一次'; }
+  finally { busy(false); }
 }
 function showLogin(msg) {
   $('#app').classList.add('hidden'); $('#login').classList.remove('hidden');
   if (msg) $('#loginMsg').textContent = msg;
   initGoogle();
-  if (window.google && google.accounts) google.accounts.id.prompt();
 }
 async function start() {
-  if (!getToken()) return showLogin();
+  if (!getToken()) { clearLogin(); return showLogin(); }
   $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
-  try { await api('state'); } catch (e) { if (getToken()) toast(e.message, true); }
+  const cached = loadStateCache();
+  if (cached) { S = cached; render(); }          // 先顯示上次的資料
+  try { await api('state', {}, !!cached); }      // 再到背景抓最新
+  catch (e) { if (getToken()) toast(e.message, true); }
 }
 $('#logout').onclick = e => {
-  e.preventDefault(); setToken(null);
+  e.preventDefault(); clearLogin();
   if (window.google && google.accounts) google.accounts.id.disableAutoSelect();
   showLogin();
 };
@@ -573,8 +604,7 @@ $('#submitMoney').onclick = async () => {
 };
 $('#refreshBtn').onclick = async () => {
   const b = $('#refreshBtn'); if (b.classList.contains('busy')) return;
-  b.classList.add('busy');
-  try { await api('state'); toast('已更新'); } catch (e) { toast(e.message, true); } finally { b.classList.remove('busy'); }
+  try { await api('state', {}, true); toast('已更新'); } catch (e) { toast(e.message, true); }
 };
 $('#saveSettings').onclick = () => act('saveSettings', {
   kid_name: $('#setKid').value, interest_step: $('#setStep').value, interest_per_step: $('#setPer').value,
@@ -585,7 +615,7 @@ $('#copyKid').onclick = async () => {
 $('#resetKid').onclick = async () => {
   if (await confirmSheet('重新產生小孩連結？', 'iPad 上的舊連結會立刻失效，需要重新加入主畫面', '重新產生', true)) act('resetKidToken', {}, '已產生新連結');
 };
-document.addEventListener('visibilitychange', () => { if (!document.hidden && S && getToken()) api('state').catch(() => {}); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S && getToken()) api('state', {}, true).catch(() => {}); });
 
 // ---------- 啟動 ----------
 if (window.__IN_APP__) {

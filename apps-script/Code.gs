@@ -49,7 +49,11 @@ const DEFAULT_SETTINGS = {
   interest_step: 1000,      // 每滿多少元
   interest_per_step: 10,    // 每月多少利息
   last_interest_month: '',  // yyyy-MM，防止重複發息
+  session_days: 1,          // 家長端登入一次可維持幾天
 };
+
+const CACHE_TTL = 600;      // 讀取快取秒數（任何寫入、發息、手動編輯試算表都會立即失效）
+let MEMO = {};              // 單次請求內的試算表讀取快取
 
 // =====================================================================
 // 一、初始化（第一次手動執行一次）
@@ -125,6 +129,7 @@ function doGet() {
 }
 
 function doPost(e) {
+  MEMO = {};
   try {
     const body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     return json_(route_(body));
@@ -140,29 +145,37 @@ function route_(body) {
   if (action === 'kid') {
     const token = PropertiesService.getScriptProperties().getProperty('KID_TOKEN');
     if (!body.token || !token || body.token !== token) throw codeErr_('連結無效，請跟爸媽要新的連結', 'BAD_TOKEN');
-    return { ok: true, data: kidView_() };
+    return { ok: true, data: cached_('kid', kidView_) };
   }
 
-  // --- 長輩 / 爸媽：需要 Google 登入 ---
-  const user = authUser_(body.idToken);
+  // --- 用 Google 登入換一張自家的登入憑證（預設 1 天有效） ---
+  if (action === 'login') {
+    const info = verifyIdToken_(body.idToken);
+    const user = memberOf_(info.email);
+    const sess = issueSession_(user.email);
+    return { ok: true, session: sess.token, sessionExp: sess.exp, data: cached_('st_' + user.email, () => fullState_(user)) };
+  }
+
+  // --- 長輩 / 爸媽：需要登入憑證 ---
+  const user = authUser_(body);
 
   switch (action) {
     case 'state':
-      return { ok: true, data: fullState_(user) };
+      return { ok: true, data: cached_('st_' + user.email, () => fullState_(user)) };
 
     case 'deposit':
     case 'deduct':
     case 'spend':
-      return withLock_(() => { addMoney_(user, action, body); return { ok: true, data: fullState_(user) }; });
+      return withLock_(() => { addMoney_(user, action, body); return afterWrite_(user); });
 
     case 'task':
-      return withLock_(() => { completeTask_(user, body); return { ok: true, data: fullState_(user) }; });
+      return withLock_(() => { completeTask_(user, body); return afterWrite_(user); });
 
     case 'redeem':
-      return withLock_(() => { redeem_(user, body); return { ok: true, data: fullState_(user) }; });
+      return withLock_(() => { redeem_(user, body); return afterWrite_(user); });
 
     case 'reverse':
-      return withLock_(() => { reverse_(user, body.id); return { ok: true, data: fullState_(user) }; });
+      return withLock_(() => { reverse_(user, body.id); return afterWrite_(user); });
 
     case 'saveTask':
     case 'saveReward':
@@ -172,7 +185,7 @@ function route_(body) {
     case 'goalAchieve':
     case 'resetKidToken':
       requirePerm_(user, 'manage');
-      return withLock_(() => { manage_(user, action, body); return { ok: true, data: fullState_(user) }; });
+      return withLock_(() => { manage_(user, action, body); return afterWrite_(user); });
 
     default:
       throw codeErr_('未知的操作：' + action, 'BAD_ACTION');
@@ -182,14 +195,88 @@ function route_(body) {
 // =====================================================================
 // 三、身分驗證
 // =====================================================================
-function authUser_(idToken) {
-  if (!idToken) throw codeErr_('請先登入', 'AUTH');
-  const info = verifyIdToken_(idToken);
-  const user = readRows_(SHEETS.USERS).find(u =>
-    String(u.email).trim().toLowerCase() === info.email && isTrue_(u.active));
-  if (!user) throw codeErr_('此帳號（' + info.email + '）尚未被加入，請爸媽在「設定 → 成員」新增', 'NOT_MEMBER');
-  return { email: info.email, name: String(user.name), role: String(user.role) };
+/** 每次請求都重新對照 Users：成員被停用或刪除會立即失效，不必等登入過期 */
+function authUser_(body) {
+  let email;
+  if (body.session) email = verifySession_(body.session);
+  else if (body.idToken) email = verifyIdToken_(body.idToken).email;   // 舊版前端相容
+  else throw codeErr_('請先登入', 'AUTH');
+  return memberOf_(email);
 }
+
+function memberOf_(email) {
+  const user = readRows_(SHEETS.USERS).find(u =>
+    String(u.email).trim().toLowerCase() === email && isTrue_(u.active));
+  if (!user) throw codeErr_('此帳號（' + email + '）尚未被加入，請爸媽在「設定 → 成員」新增', 'NOT_MEMBER');
+  return { email: email, name: String(user.name), role: String(user.role) };
+}
+
+// ---- 自家登入憑證：email + 到期時間，用 HMAC-SHA256 簽章（密鑰只存在指令碼屬性） ----
+function sessionSecret_() {
+  const props = PropertiesService.getScriptProperties();
+  let k = props.getProperty('SESSION_SECRET');
+  if (!k) { k = newToken_() + newToken_(); props.setProperty('SESSION_SECRET', k); }
+  return k;
+}
+
+function signSession_(payload) {
+  return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(payload, sessionSecret_())).replace(/=+$/, '');
+}
+
+function issueSession_(email) {
+  const days = Math.min(30, Math.max(1, Number(readSettings_().session_days) || DEFAULT_SETTINGS.session_days));
+  const exp = Date.now() + days * 86400000;
+  const payload = Utilities.base64EncodeWebSafe(email).replace(/=+$/, '') + '.' + exp;
+  return { token: payload + '.' + signSession_(payload), exp: exp };
+}
+
+function verifySession_(token) {
+  const parts = String(token).split('.');
+  if (parts.length !== 3) throw codeErr_('登入已失效，請重新登入', 'AUTH');
+  const payload = parts[0] + '.' + parts[1];
+  if (signSession_(payload) !== parts[2]) throw codeErr_('登入已失效，請重新登入', 'AUTH');
+  if (!(Number(parts[1]) > Date.now())) throw codeErr_('登入已過期，請重新登入', 'AUTH');
+  const pad = parts[0] + '==='.slice((parts[0].length + 3) % 4);
+  return Utilities.newBlob(Utilities.base64DecodeWebSafe(pad)).getDataAsString().toLowerCase();
+}
+
+/** 讓所有裝置立即登出（手機遺失時在 Apps Script 手動執行） */
+function logoutAllDevices() {
+  PropertiesService.getScriptProperties().setProperty('SESSION_SECRET', newToken_() + newToken_());
+  Logger.log('已讓所有家長端裝置登出');
+}
+
+// ---- 讀取快取：任何寫入就換版本號，舊快取自動作廢 ----
+function dataVer_() {
+  const c = CacheService.getScriptCache();
+  let v = c.get('data_ver');
+  if (!v) { v = String(Date.now()); c.put('data_ver', v, 21600); }
+  return v;
+}
+
+function bumpVer_() {
+  try { CacheService.getScriptCache().put('data_ver', String(Date.now()) + Math.random().toString(36).slice(2, 6), 21600); } catch (e) {}
+}
+
+function cached_(name, build) {
+  const c = CacheService.getScriptCache();
+  const key = 'v' + dataVer_() + '_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, name));
+  const hit = c.get(key);
+  if (hit) return JSON.parse(hit);
+  const data = build();
+  const str = JSON.stringify(data);
+  if (str.length < 95000) { try { c.put(key, str, CACHE_TTL); } catch (e) {} }
+  return data;
+}
+
+function afterWrite_(user) {
+  bumpVer_();
+  MEMO = {};
+  return { ok: true, data: cached_('st_' + user.email, () => fullState_(user)) };
+}
+
+/** 手動編輯試算表時讓快取失效（簡單觸發器，不需另外設定） */
+function onEdit() { bumpVer_(); }
 
 /** 向 Google 驗證 ID token，結果快取到 token 到期前 */
 function verifyIdToken_(idToken) {
@@ -376,6 +463,7 @@ function monthlyInterest() {
       });
     }
     writeSetting_('last_interest_month', month);
+    bumpVer_();
   } finally {
     lock.releaseLock();
   }
@@ -556,6 +644,13 @@ function sheet_(def) {
 }
 
 function readRows_(def) {
+  if (MEMO[def.name]) return MEMO[def.name].map(o => Object.assign({}, o));
+  const rows = readRowsRaw_(def);
+  MEMO[def.name] = rows;
+  return rows.map(o => Object.assign({}, o));
+}
+
+function readRowsRaw_(def) {
   const sh = sheet_(def);
   const last = sh.getLastRow();
   if (last < 2) return [];
@@ -568,6 +663,7 @@ function readRows_(def) {
 }
 
 function appendRow_(def, obj) {
+  delete MEMO[def.name];
   sheet_(def).appendRow(def.headers.map(h => (obj[h] === undefined ? '' : obj[h])));
 }
 
@@ -584,6 +680,8 @@ function appendLedger_(user, e) {
 function upsert_(def, obj) { upsertBy_(def, 'id', obj); }
 
 function upsertBy_(def, keyField, obj) {
+  delete MEMO[def.name];
+  delete MEMO.__settings;
   const sh = sheet_(def);
   const last = sh.getLastRow();
   const col = def.headers.indexOf(keyField) + 1;
@@ -600,11 +698,13 @@ function upsertBy_(def, keyField, obj) {
 }
 
 function readSettings_() {
+  if (MEMO.__settings) return Object.assign({}, MEMO.__settings);
   const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.SETTINGS.name);
   const o = {};
   if (!sh || sh.getLastRow() < 2) return o;
   sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues().forEach(r => { if (r[0] !== '') o[r[0]] = r[1]; });
-  return o;
+  MEMO.__settings = o;
+  return Object.assign({}, o);
 }
 
 function writeSetting_(key, value) {
